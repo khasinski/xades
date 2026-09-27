@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+- **Breaking**: now requires Ruby >= 4.0 (was >= 3.2). CI matrix and `.rubocop.yml`'s
+  `TargetRubyVersion` updated to match.
 - `Verifier` now reads and respects a document's actually-declared canonicalization method
   (Exclusive C14N, plain C14N 1.0, or C14N 1.1, including the XMLDSig-implicit-default cases),
   digest algorithm (SHA-1/256/384/512) and signature algorithm (RSA/ECDSA with any of those
