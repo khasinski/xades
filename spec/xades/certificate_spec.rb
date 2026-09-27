@@ -43,6 +43,51 @@ RSpec.describe Xades::Certificate do
     end.to raise_error(Xades::UnsupportedKeyError)
   end
 
+  describe "validation" do
+    it "rejects a certificate/key pair where the public keys don't match (mismatched files, a common real mistake)" do
+      other_key = OpenSSL::PKey::RSA.generate(2048)
+
+      expect do
+        described_class.new(x509: certificate.x509, key: other_key)
+      end.to raise_error(Xades::CertificateKeyMismatchError, /does not match/)
+    end
+
+    it "rejects a mismatched EC certificate/key pair the same way" do
+      ec_certificate = build_ec_certificate
+      other_key = OpenSSL::PKey::EC.generate("prime256v1")
+
+      expect do
+        described_class.new(x509: ec_certificate.x509, key: other_key)
+      end.to raise_error(Xades::CertificateKeyMismatchError)
+    end
+
+    it "rejects an RSA key below 2048 bits (KSeF's documented minimum)" do
+      weak_key = OpenSSL::PKey::RSA.generate(1024)
+      x509 = OpenSSL::X509::Certificate.new
+      x509.serial = 1
+      x509.subject = OpenSSL::X509::Name.parse("/CN=Weak")
+      x509.issuer = x509.subject
+      x509.public_key = weak_key.public_key
+      x509.not_before = Time.now
+      x509.not_after = Time.now + 3600
+      x509.sign(weak_key, OpenSSL::Digest.new("SHA256"))
+
+      expect do
+        described_class.new(x509: x509, key: weak_key)
+      end.to raise_error(Xades::UnsupportedKeyError, /1024/)
+    end
+  end
+
+  describe "#expired?, #not_yet_valid?, #valid_at?" do
+    it "is valid within its validity window and invalid outside it" do
+      expect(certificate.valid_at?(Time.now)).to be true
+      expect(certificate.expired?(at: certificate.x509.not_after + 1)).to be true
+      expect(certificate.not_yet_valid?(at: certificate.x509.not_before - 1)).to be true
+      expect(certificate.valid_at?(certificate.x509.not_after + 1)).to be false
+      expect(certificate.valid_at?(certificate.x509.not_before - 1)).to be false
+    end
+  end
+
   it "exposes the certificate as base64 DER" do
     expect(Base64.decode64(certificate.base64_der)).to eq(certificate.x509.to_der)
   end

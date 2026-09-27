@@ -13,14 +13,18 @@ module Xades
   #      patch its real digest into the (still embedded) SignedInfo/Reference.
   #   4. Canonicalize the now-final SignedInfo node -- that's the exact byte sequence signed.
   class Signer
-    def initialize(certificate:, signing_time: Time.now.utc, signing_certificate_version: :v2, id_prefix: "xades")
+    def initialize(certificate:, signing_time: Time.now.utc, signing_certificate_version: :v2, id_prefix: "xades",
+                   allow_invalid_certificate_period: false)
       @certificate = certificate
       @signing_time = signing_time
       @signing_certificate_version = signing_certificate_version
       @id_prefix = id_prefix
+      @allow_invalid_certificate_period = allow_invalid_certificate_period
     end
 
     def sign(xml)
+      validate_certificate_period!
+
       doc = Nokogiri::XML(xml.to_s)
       raise MalformedDocumentError, "document has no root element" unless doc.root
 
@@ -38,6 +42,16 @@ module Xades
     end
 
     private
+
+    def validate_certificate_period!
+      return if @allow_invalid_certificate_period
+      return if @certificate.valid_at?(@signing_time)
+
+      reason = @certificate.expired?(at: @signing_time) ? "expired" : "not yet valid"
+      raise CertificateValidityError,
+            "certificate is #{reason} at #{@signing_time} (validity: #{@certificate.x509.not_before} .. " \
+            "#{@certificate.x509.not_after}); pass allow_invalid_certificate_period: true to sign anyway"
+    end
 
     Ids = Struct.new(:signature, :document_reference, :signed_properties, :key_info, :signature_value)
 

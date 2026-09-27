@@ -5,11 +5,14 @@ module Xades
   class Certificate
     attr_reader :x509, :key
 
+    # KSeF's docs require a minimum 2048-bit RSA key; a weaker key would otherwise be accepted
+    # silently here and only rejected much later, opaquely, by whatever system verifies it.
+    MINIMUM_RSA_KEY_BITS = 2048
+
     def initialize(x509:, key:)
-      unless key.is_a?(OpenSSL::PKey::RSA) || key.is_a?(OpenSSL::PKey::EC)
-        raise UnsupportedKeyError,
-              "key must be an RSA or EC private key"
-      end
+      validate_key_type!(key)
+      validate_key_strength!(key)
+      validate_key_matches_certificate!(x509, key)
 
       @x509 = x509
       @key = key
@@ -57,6 +60,18 @@ module Xades
       x509.serial.to_s
     end
 
+    def expired?(at: Time.now)
+      at > x509.not_after
+    end
+
+    def not_yet_valid?(at: Time.now)
+      at < x509.not_before
+    end
+
+    def valid_at?(time)
+      !expired?(at: time) && !not_yet_valid?(at: time)
+    end
+
     # DER-encoded IssuerSerial (RFC 5035 IssuerSerial: SEQUENCE { GeneralNames, CertificateSerialNumber }),
     # base64-encoded, as used by xades:IssuerSerialV2 (SigningCertificate V2). Verified byte-for-byte against
     # a real DSS-generated fixture during development.
@@ -71,6 +86,41 @@ module Xades
       serial_asn1 = OpenSSL::ASN1::Integer.new(x509.serial)
       issuer_serial = OpenSSL::ASN1::Sequence.new([general_names, serial_asn1])
       Base64.strict_encode64(issuer_serial.to_der)
+    end
+
+    private
+
+    def validate_key_type!(key)
+      return if key.is_a?(OpenSSL::PKey::RSA) || key.is_a?(OpenSSL::PKey::EC)
+
+      raise UnsupportedKeyError, "key must be an RSA or EC private key, got #{key.class}"
+    end
+
+    def validate_key_strength!(key)
+      return unless key.is_a?(OpenSSL::PKey::RSA)
+      return if key.n.num_bits >= MINIMUM_RSA_KEY_BITS
+
+      raise UnsupportedKeyError, "RSA key is #{key.n.num_bits} bits, minimum is #{MINIMUM_RSA_KEY_BITS}"
+    end
+
+    def validate_key_matches_certificate!(x509, key)
+      return if public_key_der(x509.public_key) == public_key_der(key)
+
+      raise CertificateKeyMismatchError, "the certificate's public key does not match the given private key"
+    end
+
+    # A private key's own #public_key and a certificate's #public_key aren't directly comparable
+    # for EC (the former is a bare OpenSSL::PKey::EC::Point, the latter a full OpenSSL::PKey::EC),
+    # so we normalize both down to the raw EC point encoding; for RSA, #to_der on the public key
+    # portion of either is already directly comparable.
+    def public_key_der(key_or_cert_public_key)
+      if key_or_cert_public_key.is_a?(OpenSSL::PKey::EC)
+        key_or_cert_public_key.public_key.to_bn.to_s(2)
+      elsif key_or_cert_public_key.is_a?(OpenSSL::PKey::RSA)
+        key_or_cert_public_key.public_key.to_der
+      else
+        key_or_cert_public_key.to_der
+      end
     end
   end
 end

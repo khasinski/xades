@@ -44,5 +44,35 @@ RSpec.describe Xades::Signer do
       second = Nokogiri::XML(signer.sign(xml)).at_xpath("//*[local-name()='Signature']")["Id"]
       expect(first).not_to eq(second)
     end
+
+    describe "certificate validity period" do
+      it "raises CertificateValidityError when signing_time is before the certificate's not_before" do
+        expect do
+          described_class.new(certificate: certificate, signing_time: certificate.x509.not_before - 1).sign(xml)
+        end.to raise_error(Xades::CertificateValidityError, /not yet valid/)
+      end
+
+      it "raises CertificateValidityError when signing_time is after the certificate's not_after" do
+        expect do
+          described_class.new(certificate: certificate, signing_time: certificate.x509.not_after + 1).sign(xml)
+        end.to raise_error(Xades::CertificateValidityError, /expired/)
+      end
+
+      it "does not raise when signing_time is within the certificate's validity period" do
+        expect do
+          described_class.new(certificate: certificate, signing_time: certificate.x509.not_before + 1).sign(xml)
+        end.not_to raise_error
+      end
+
+      it "can be bypassed with allow_invalid_certificate_period: true" do
+        expect do
+          described_class.new(
+            certificate: certificate,
+            signing_time: certificate.x509.not_after + 1,
+            allow_invalid_certificate_period: true
+          ).sign(xml)
+        end.not_to raise_error
+      end
+    end
   end
 end

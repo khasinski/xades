@@ -114,8 +114,26 @@ result.errors  # => []
 | `certificate:` | *(required)* | an `Xades::Certificate` |
 | `signing_time:` | `Time.now.utc` | embedded as `xades:SigningTime` |
 | `signing_certificate_version:` | `:v2` | `:v2` (`SigningCertificateV2`/`IssuerSerialV2`) or `:v1` (`SigningCertificate`/`IssuerSerial`) |
+| `allow_invalid_certificate_period:` | `false` | set `true` to sign anyway with a certificate that's expired or not yet valid at `signing_time` (see below) |
 
 The certificate's key type (RSA or EC) determines the signature algorithm automatically.
+
+### Certificate validation
+
+`Xades::Certificate.new`/`.from_pem`/`.from_pkcs12` reject obviously-broken input immediately,
+rather than producing a certificate that would silently fail to verify (or be rejected by KSeF)
+much later, opaquely:
+
+- the private key must actually correspond to the certificate's public key (`Xades::CertificateKeyMismatchError`) --
+  catches the common mistake of pairing the wrong cert/key files
+- an RSA key must be at least 2048 bits (`Xades::UnsupportedKeyError`), KSeF's documented minimum
+
+`Xades::Bes.sign` additionally checks the certificate's validity period (`not_before`/`not_after`)
+against `signing_time` and raises `Xades::CertificateValidityError` if it's expired or not yet
+valid; pass `allow_invalid_certificate_period: true` if you need to sign anyway (e.g. in a test).
+`certificate.valid_at?(time)`, `#expired?`, and `#not_yet_valid?` are available for checking this
+yourself beforehand. None of this validates trust/chain/revocation -- see "What this is (and
+isn't)" above.
 
 ### KSeF example
 

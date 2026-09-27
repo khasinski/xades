@@ -21,8 +21,11 @@ module CertificateHelper
     cert.subject = OpenSSL::X509::Name.new([["C", "PL"], ["O", "Xades Test Suite"], ["CN", cn]])
     cert.issuer = OpenSSL::X509::Name.new([["C", "PL"], ["O", "Xades Test Suite"], ["CN", "Xades Test CA"]])
     cert.public_key = key.is_a?(OpenSSL::PKey::EC) ? key : key.public_key
-    cert.not_before = Time.now - 60
-    cert.not_after = Time.now + 3600
+    # Deliberately wide: several specs sign with a fixed historical/future signing_time (to assert
+    # it's honored rather than defaulting to Time.now), which must fall inside this window now that
+    # Signer validates the certificate's validity period against the given signing time.
+    cert.not_before = Time.utc(2000, 1, 1)
+    cert.not_after = Time.utc(2100, 1, 1)
     cert.version = 2
     cert.sign(key, OpenSSL::Digest.new("SHA256"))
     cert

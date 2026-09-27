@@ -8,11 +8,13 @@ module Xades
   #   result      = Xades::Bes.verify(signed_xml)
   #   result.valid? # => true
   module Bes
-    def self.sign(xml, certificate:, signing_time: Time.now.utc, signing_certificate_version: :v2)
+    def self.sign(xml, certificate:, signing_time: Time.now.utc, signing_certificate_version: :v2,
+                  allow_invalid_certificate_period: false)
       Signer.new(
         certificate: certificate,
         signing_time: signing_time,
-        signing_certificate_version: signing_certificate_version
+        signing_certificate_version: signing_certificate_version,
+        allow_invalid_certificate_period: allow_invalid_certificate_period
       ).sign(xml)
     end
 
