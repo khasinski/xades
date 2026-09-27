@@ -1,0 +1,12 @@
+This gem's own source code is MIT-licensed (see LICENSE.txt).
+
+The test fixtures under spec/fixtures/interop/ are vendored, unmodified, from:
+
+  signxml (https://github.com/XML-Security/signxml)
+  Copyright signxml contributors
+  Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
+
+They are test data only (sample signed XML documents used to exercise this gem's verifier) and are
+not compiled or linked into the gem's runtime code. See spec/fixtures/interop/SOURCES.md for the
+provenance and purpose of each individual file, including further upstream lineage to the esig/dss
+project (LGPL-2.1) and the ETSI XAdES plugtests corpus.

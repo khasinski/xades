@@ -1,0 +1,21 @@
+# frozen_string_literal: true
+
+require "openssl"
+require "base64"
+require "securerandom"
+require "nokogiri"
+
+require_relative "xades/version"
+require_relative "xades/errors"
+require_relative "xades/algorithms"
+require_relative "xades/util"
+require_relative "xades/c14n"
+require_relative "xades/digest"
+require_relative "xades/certificate"
+require_relative "xades/ecdsa_signature"
+require_relative "xades/builder/key_info"
+require_relative "xades/builder/signed_info"
+require_relative "xades/builder/qualifying_properties"
+require_relative "xades/signer"
+require_relative "xades/verifier"
+require_relative "xades/bes"

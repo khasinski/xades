@@ -1,0 +1,40 @@
+AllCops:
+  TargetRubyVersion: 3.2
+  SuggestExtensions: false
+
+Style/StringLiterals:
+  EnforcedStyle: double_quotes
+
+Style/StringLiteralsInInterpolation:
+  EnforcedStyle: double_quotes
+
+# Spec files favor long, descriptive `it`/`describe` blocks and fixture literals (base64 blobs,
+# inline XML) over the tight methods Metrics/Naming are tuned for elsewhere.
+Metrics/BlockLength:
+  Exclude:
+    - "spec/**/*"
+    - "*.gemspec"
+
+Layout/LineLength:
+  Exclude:
+    - "spec/**/*"
+
+Naming/MethodParameterName:
+  Exclude:
+    - "spec/**/*"
+
+# Verifier's checks (document digest, SignedProperties digest, SignatureValue, SigningCertificate
+# binding) are each already extracted into their own method; the class is a straightforward,
+# already-decomposed list of them, just past the default thresholds.
+Metrics/ClassLength:
+  Exclude:
+    - "lib/xades/verifier.rb"
+
+Metrics/MethodLength:
+  Exclude:
+    - "lib/xades/verifier.rb"
+
+Metrics/AbcSize:
+  Exclude:
+    - "spec/**/*"
+    - "lib/xades/verifier.rb"
