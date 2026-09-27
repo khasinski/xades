@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-27
+
 - Added `Xades::Bes.verify!`/`Xades::Verifier.verify!`: raises `Xades::VerificationError` (message
   joins every `Result#errors` entry) instead of returning a `Result` you have to check `.valid?`
   on. Returns `true` on success.
