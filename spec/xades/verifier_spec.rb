@@ -101,4 +101,18 @@ RSpec.describe Xades::Verifier do
       expect(result.errors).to eq(["no SignedInfo element found"])
     end
   end
+
+  describe ".verify!" do
+    it "returns true instead of a Result when valid" do
+      document = build_document(
+        key: (key = OpenSSL::PKey::RSA.generate(2048)), cert: self_signed_cert_for(key),
+        signature_method: "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256", digest_uri: "http://www.w3.org/2001/04/xmlenc#sha256"
+      )
+      expect(described_class.verify!(document)).to be true
+    end
+
+    it "raises Xades::VerificationError joining every Result error into the message" do
+      expect { described_class.verify!("<Root/>") }.to raise_error(Xades::VerificationError, "XAdES signature is invalid: no Signature element found")
+    end
+  end
 end

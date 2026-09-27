@@ -22,4 +22,8 @@ module Xades
 
   # Raised when the input XML cannot be parsed or is missing an expected signature structure.
   class MalformedDocumentError < Error; end
+
+  # Raised by Verifier.verify!/Bes.verify! (as opposed to .verify, which returns a Result) when the
+  # signature is structurally or cryptographically invalid.
+  class VerificationError < Error; end
 end

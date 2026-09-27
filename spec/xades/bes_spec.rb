@@ -103,4 +103,15 @@ RSpec.describe Xades::Bes do
       expect { described_class.sign("", certificate: build_rsa_certificate) }.to raise_error(Xades::MalformedDocumentError)
     end
   end
+
+  describe ".verify!" do
+    it "returns true for a valid signature" do
+      signed = described_class.sign(xml, certificate: build_rsa_certificate)
+      expect(described_class.verify!(signed)).to be true
+    end
+
+    it "raises Xades::VerificationError, with the Result's errors joined into the message, for an invalid one" do
+      expect { described_class.verify!(xml) }.to raise_error(Xades::VerificationError, /no Signature element found/)
+    end
+  end
 end

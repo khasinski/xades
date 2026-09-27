@@ -16,7 +16,7 @@ module Xades
     def initialize(certificate:, signing_time: Time.now.utc, signing_certificate_version: :v2, id_prefix: "xades",
                    allow_invalid_certificate_period: false)
       @certificate = certificate
-      @signing_time = signing_time
+      @signing_time = normalize_signing_time(signing_time)
       @signing_certificate_version = signing_certificate_version
       @id_prefix = id_prefix
       @allow_invalid_certificate_period = allow_invalid_certificate_period
@@ -42,6 +42,16 @@ module Xades
     end
 
     private
+
+    # Accepts Time directly, and anything else that can become one (Date, DateTime,
+    # ActiveSupport::TimeWithZone all implement #to_time) -- rather than failing later with a bare
+    # NoMethodError on #utc deep inside a builder for, say, a plain Date.
+    def normalize_signing_time(time)
+      return time if time.is_a?(Time)
+      return time.to_time if time.respond_to?(:to_time)
+
+      raise ArgumentError, "signing_time must be a Time (or respond to #to_time), got #{time.class}"
+    end
 
     def validate_certificate_period!
       return if @allow_invalid_certificate_period

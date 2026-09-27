@@ -105,6 +105,9 @@ signed_xml = Xades::Bes.sign(xml, certificate: certificate)
 result = Xades::Bes.verify(signed_xml)
 result.valid?  # => true
 result.errors  # => []
+
+# Or, if you'd rather raise than check .valid? yourself:
+Xades::Bes.verify!(signed_xml) # => true, or raises Xades::VerificationError
 ```
 
 `Xades::Bes.sign` accepts:
@@ -112,7 +115,7 @@ result.errors  # => []
 | option | default | |
 |---|---|---|
 | `certificate:` | *(required)* | an `Xades::Certificate` |
-| `signing_time:` | `Time.now.utc` | embedded as `xades:SigningTime` |
+| `signing_time:` | `Time.now.utc` | embedded as `xades:SigningTime`; a `Time`, or anything with `#to_time` (`Date`, `DateTime`, `ActiveSupport::TimeWithZone`, ...) |
 | `signing_certificate_version:` | `:v2` | `:v2` (`SigningCertificateV2`/`IssuerSerialV2`) or `:v1` (`SigningCertificate`/`IssuerSerial`) |
 | `allow_invalid_certificate_period:` | `false` | set `true` to sign anyway with a certificate that's expired or not yet valid at `signing_time` (see below) |
 

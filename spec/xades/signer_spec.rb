@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "date"
+
 RSpec.describe Xades::Signer do
   let(:xml) { '<Root xmlns="urn:test"><Payload>hello</Payload></Root>' }
   let(:certificate) { build_rsa_certificate }
@@ -24,6 +26,28 @@ RSpec.describe Xades::Signer do
       expect do
         described_class.new(certificate: certificate, signing_certificate_version: :v9).sign(xml)
       end.to raise_error(ArgumentError, /:v1 or :v2/)
+    end
+
+    describe "signing_time normalization" do
+      it "accepts a Time as-is" do
+        signed = described_class.new(certificate: certificate, signing_time: Time.utc(2026, 4, 1, 9)).sign(xml)
+        expect(Nokogiri::XML(signed).at_xpath("//*[local-name()='SigningTime']").text).to eq("2026-04-01T09:00:00Z")
+      end
+
+      it "converts a DateTime via #to_time (bare DateTime has no #utc and would otherwise raise NoMethodError)" do
+        signed = described_class.new(certificate: certificate, signing_time: DateTime.new(2026, 4, 1, 9)).sign(xml)
+        expect(Nokogiri::XML(signed).at_xpath("//*[local-name()='SigningTime']").text).to eq("2026-04-01T09:00:00Z")
+      end
+
+      it "converts a Date via #to_time" do
+        expect { described_class.new(certificate: certificate, signing_time: Date.new(2026, 4, 1)).sign(xml) }.not_to raise_error
+      end
+
+      it "raises a clear ArgumentError for something with neither #utc nor #to_time, instead of a bare NoMethodError" do
+        expect do
+          described_class.new(certificate: certificate, signing_time: "2026-04-01").sign(xml)
+        end.to raise_error(ArgumentError, /signing_time must be a Time/)
+      end
     end
   end
 

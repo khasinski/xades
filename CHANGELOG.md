@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+- Added `Xades::Bes.verify!`/`Xades::Verifier.verify!`: raises `Xades::VerificationError` (message
+  joins every `Result#errors` entry) instead of returning a `Result` you have to check `.valid?`
+  on. Returns `true` on success.
+- `signing_time:` now accepts anything that responds to `#to_time` (`Date`, `DateTime`,
+  `ActiveSupport::TimeWithZone`, ...) in addition to `Time`, normalized up front with a clear
+  `ArgumentError` for anything else -- previously a bare `Date` failed with a `NoMethodError` on
+  `#utc` deep inside a builder.
 - **Breaking**: `Xades::Certificate.new` (and therefore `.from_pem`/`.from_pkcs12`) now validates
   that the private key actually matches the certificate's public key
   (`Xades::CertificateKeyMismatchError` if not) and that an RSA key is at least 2048 bits

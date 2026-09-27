@@ -23,6 +23,15 @@ module Xades
       new(xml).verify
     end
 
+    # Like .verify, but raises Xades::VerificationError (with all of Result#errors joined into the
+    # message) instead of returning a Result you have to check .valid? on. Returns true on success.
+    def self.verify!(xml)
+      result = verify(xml)
+      return true if result.valid?
+
+      raise VerificationError, "XAdES signature is invalid: #{result.errors.join("; ")}"
+    end
+
     def initialize(xml)
       @doc = Nokogiri::XML(xml.to_s)
     end

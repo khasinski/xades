@@ -21,5 +21,11 @@ module Xades
     def self.verify(xml)
       Verifier.verify(xml)
     end
+
+    # Like .verify, but raises Xades::VerificationError instead of returning a Result to check
+    # .valid? on. Returns true on success.
+    def self.verify!(xml)
+      Verifier.verify!(xml)
+    end
   end
 end
