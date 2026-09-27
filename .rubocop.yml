@@ -15,6 +15,16 @@ Metrics/BlockLength:
     - "spec/**/*"
     - "*.gemspec"
 
+Metrics/MethodLength:
+  Exclude:
+    - "spec/**/*"
+    - "lib/xades/verifier.rb"
+
+Metrics/AbcSize:
+  Exclude:
+    - "spec/**/*"
+    - "lib/xades/verifier.rb"
+
 Layout/LineLength:
   Exclude:
     - "spec/**/*"
@@ -30,11 +40,10 @@ Metrics/ClassLength:
   Exclude:
     - "lib/xades/verifier.rb"
 
-Metrics/MethodLength:
+Metrics/CyclomaticComplexity:
   Exclude:
     - "lib/xades/verifier.rb"
 
-Metrics/AbcSize:
+Metrics/PerceivedComplexity:
   Exclude:
-    - "spec/**/*"
     - "lib/xades/verifier.rb"

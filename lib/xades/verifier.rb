@@ -5,6 +5,11 @@ module Xades
   # document/SignedProperties digests match and that SignatureValue matches SignedInfo under the
   # embedded certificate's public key.
   #
+  # Unlike Signer (which always produces Exclusive C14N / SHA-256 / RSA-SHA256|ECDSA-SHA256, the
+  # combination KSeF and modern generators use), Verifier reads and respects whatever
+  # canonicalization, digest and signature algorithms a document actually declares -- KSeF's own
+  # docs, and real-world signatures from other EU countries, allow several of each. See README.
+  #
   # This does NOT validate certificate trust, chain, revocation or validity period -- that is a
   # separate concern (deliberately out of scope for BES-level verification; see the gem's README).
   class Verifier
@@ -45,14 +50,40 @@ module Xades
       Result.new(false, [message])
     end
 
+    # The algorithm actually used to turn a Reference's node-set into octets is whichever C14N
+    # transform is last in its Transforms list. Per the XMLDSig spec, when none of a Reference's
+    # transforms is itself a canonicalization method (whether because Transforms is absent, as in a
+    # real UK ASC-signed document's SignedProperties Reference, or because the only transform is
+    # something else entirely, like enveloped-signature, as in a real Spanish Facturae document's
+    # document Reference), the *implicit* default is plain Canonical XML 1.0 -- never Exclusive
+    # C14N, regardless of what other non-c14n transforms are present.
+    def reference_c14n_algorithm(reference_node)
+      transforms = reference_node.xpath(".//*[local-name()='Transform']").map { |t| t["Algorithm"] }
+      transforms.reverse.find { |uri| Xades::C14N.supported?(uri) } || Algorithms::C14N_1_0
+    end
+
+    def reference_digest(reference_node, canonical_bytes, errors, label)
+      algorithm_uri = reference_node.at_xpath("./*[local-name()='DigestMethod']")&.[]("Algorithm")
+      return Xades::Digest.base64(canonical_bytes, algorithm_uri) if Xades::Digest.supported?(algorithm_uri)
+
+      errors << "unsupported #{label} DigestMethod: #{algorithm_uri.inspect}"
+      nil
+    end
+
+    # URI="" is the standard way an enveloped signature's Reference names "the whole document" --
+    # our own Signer always emits it this way. Matching on that (rather than just "the first
+    # Reference with no Type") matters for documents that carry additional untyped references, e.g.
+    # a Reference protecting KeyInfo/the certificate (seen in real-world Facturae signatures).
     def verify_document_digest(_signature_node, signed_info_node, errors)
-      reference = signed_info_node.at_xpath(".//*[local-name()='Reference'][not(@Type)]")
+      reference = signed_info_node.at_xpath(".//*[local-name()='Reference'][@URI='']")
       return errors << "missing document Reference in SignedInfo" unless reference
 
       expected = reference.at_xpath("./*[local-name()='DigestValue']")&.text
       clone = @doc.dup(1)
       clone.at_xpath("//*[local-name()='Signature']").unlink
-      actual = Xades::Digest.sha256_base64(Xades::C14N.canonicalize(clone.root))
+      canonical = Xades::C14N.canonicalize(clone.root, reference_c14n_algorithm(reference))
+      actual = reference_digest(reference, canonical, errors, "document")
+      return unless actual
 
       errors << "document digest mismatch" unless expected == actual
     end
@@ -67,12 +98,12 @@ module Xades
       return errors << "missing SignedProperties element" unless signed_properties_node
 
       expected = reference.at_xpath("./*[local-name()='DigestValue']")&.text
-      actual = Xades::Digest.sha256_base64(Xades::C14N.canonicalize(signed_properties_node))
+      canonical = Xades::C14N.canonicalize(signed_properties_node, reference_c14n_algorithm(reference))
+      actual = reference_digest(reference, canonical, errors, "SignedProperties")
+      return unless actual
 
       errors << "SignedProperties digest mismatch" unless expected == actual
     end
-
-    KNOWN_SIGNATURE_METHODS = [Algorithms::SIGNATURE_RSA_SHA256, Algorithms::SIGNATURE_ECDSA_SHA256].freeze
 
     def verify_signature_value(signature_node, signed_info_node, errors)
       signature_value_node = signature_node.at_xpath("./*[local-name()='SignatureValue']")
@@ -80,34 +111,29 @@ module Xades
       return errors << "missing SignatureValue or X509Certificate" unless signature_value_node && cert_text
 
       signature_method = signed_info_node.at_xpath("./*[local-name()='SignatureMethod']")&.[]("Algorithm")
-      unless KNOWN_SIGNATURE_METHODS.include?(signature_method)
-        return errors << "unsupported SignatureMethod: #{signature_method.inspect}"
-      end
+      algorithm = Algorithms::SIGNATURE_METHODS[signature_method]
+      return errors << "unsupported SignatureMethod: #{signature_method.inspect}" unless algorithm
 
       cert = OpenSSL::X509::Certificate.new(Base64.decode64(cert_text))
       raw_signature = Base64.decode64(signature_value_node.text)
-      bytes = Xades::C14N.canonicalize(signed_info_node)
+      c14n_algorithm = signed_info_node.at_xpath("./*[local-name()='CanonicalizationMethod']")&.[]("Algorithm")
+      bytes = Xades::C14N.canonicalize(signed_info_node, c14n_algorithm || Algorithms::C14N_EXCLUSIVE)
 
-      errors << "signature does not match certificate" unless signature_valid?(cert, signature_method, raw_signature,
-                                                                               bytes)
+      valid = signature_valid?(cert, algorithm, raw_signature, bytes)
+      errors << "signature does not match certificate" unless valid
     end
 
-    def signature_valid?(cert, signature_method, raw_signature, bytes)
-      der = to_der_signature(signature_method, raw_signature)
-      cert.public_key.verify(OpenSSL::Digest.new("SHA256"), der, bytes)
+    def signature_valid?(cert, algorithm, raw_signature, bytes)
+      digest = OpenSSL::Digest.new(algorithm[:digest])
+      der = to_der_signature(algorithm, raw_signature)
+      cert.public_key.verify(digest, der, bytes)
     end
 
-    def to_der_signature(signature_method, raw_signature)
-      return raw_signature unless signature_method == Algorithms::SIGNATURE_ECDSA_SHA256
+    def to_der_signature(algorithm, raw_signature)
+      return raw_signature unless algorithm[:key_type] == :ecdsa
 
       EcdsaSignature.raw_to_der(raw_signature, raw_signature.bytesize / 2)
     end
-
-    DIGEST_ALGORITHMS = {
-      "http://www.w3.org/2001/04/xmlenc#sha256" => OpenSSL::Digest::SHA256,
-      "http://www.w3.org/2001/04/xmlenc#sha512" => OpenSSL::Digest::SHA512,
-      "http://www.w3.org/2000/09/xmldsig#sha1" => OpenSSL::Digest::SHA1
-    }.freeze
 
     CERT_DIGEST_XPATH = ".//*[local-name()='SigningCertificate' or local-name()='SigningCertificateV2']" \
                          "//*[local-name()='CertDigest']"
@@ -130,11 +156,12 @@ module Xades
 
     def verify_cert_digest(cert_digest_node, cert_text, errors)
       algorithm_uri = cert_digest_node.at_xpath("./*[local-name()='DigestMethod']")&.[]("Algorithm")
-      digest_class = DIGEST_ALGORITHMS[algorithm_uri]
-      return errors << "unsupported CertDigest algorithm: #{algorithm_uri.inspect}" unless digest_class
+      unless Xades::Digest.supported?(algorithm_uri)
+        return errors << "unsupported CertDigest algorithm: #{algorithm_uri.inspect}"
+      end
 
       expected = cert_digest_node.at_xpath("./*[local-name()='DigestValue']")&.text
-      actual = Base64.strict_encode64(digest_class.digest(Base64.decode64(cert_text)))
+      actual = Xades::Digest.base64(Base64.decode64(cert_text), algorithm_uri)
 
       errors << "SigningCertificate digest does not match the embedded certificate" unless expected == actual
     end
