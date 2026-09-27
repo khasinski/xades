@@ -145,7 +145,7 @@ XAdES libraries test themselves (`signxml` in Python, `xadesjs` in Node, `esig/d
 see `spec/fixtures/interop/SOURCES.md`):
 
 - **Unit specs** (`spec/xades/`) for each internal component, including a from-scratch (not via
-  `Signer`) matrix in `verifier_spec.rb` proving every RSA/ECDSA \* SHA-1/256/384/512 combination
+  `Signer`) matrix in `verifier_spec.rb` proving every RSA/ECDSA x SHA-1/256/384/512 combination
   `Verifier` claims to support actually verifies
 - **Conformance specs** (`spec/conformance/`), asserting the exact BASELINE-B structural
   requirements a signature must (and must not) satisfy, mirroring `esig/dss`'s
